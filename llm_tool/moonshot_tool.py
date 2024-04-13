@@ -3,9 +3,9 @@ import os
 from pathlib import Path
 
 from openai import OpenAI
-from dotenv import load_dotenv
-
-load_dotenv()
+# from dotenv import load_dotenv
+#
+# load_dotenv()
 
 
 def extract_paper_data(paper_data_path):

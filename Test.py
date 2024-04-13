@@ -1,19 +1,28 @@
-import json
+import schedule
+import time
 import os
-from pathlib import Path
 
-from openai import OpenAI
-from dotenv import load_dotenv
+# 定义任务
+def my_task():
+    print("任务触发了！")
 
-load_dotenv()
+# 定义定时任务函数
+def schedule_task(weekdays, hour, minute):
+    # 将周几的列表转换为schedule模块需要的格式
+    weekdays = [f"monday.{week}" for week in weekdays]
 
-client = OpenAI(
-        api_key=os.getenv("KIMI_API_KEY"),
-        base_url=os.getenv("KIMI_BASE_URL"),
-    )
+    # 创建定时任务
+    for day in weekdays:
+        schedule.every().day.at(f"{hour}:{minute}").do(my_task).tag(day)
 
-file_list = client.files.list()
-for file in file_list.data:
-    print(file.filename, file.id)
+# 示例：每周一、周三、周五的12点触发任务
+schedule_task(["sat"], 17, 35)
 
-# client.files.delete(file_id="cocfp71hmfr6003led70")
+os.environ["KIMI_API_KEY"] = "hello"
+print(os.getenv("KIMI_API_KEY"))
+
+# 持续运行直到手动停止
+while True:
+    # 检查定时任务是否需要执行
+    schedule.run_pending()
+    time.sleep(60)  # 每隔60秒检查一次

@@ -6,6 +6,9 @@ import os
 
 from llm_tool import moonshot_tool
 
+import schedule
+import time
+
 
 def get_authors(authors, first_author=False):
     """
@@ -150,37 +153,135 @@ def get_topic_paper(topic, query_list=None, max_results=2):
     return {topic: topic_paper}
 
 
+def paper_process(
+        topic: str,
+        query_list: list,
+        max_results_per_query: int,
+        judge_number: int,
+        root_dir: str
+):
+    """
+    论文主函数
+    :return: 无返回
+    """
+    # # 判断目录是否存在
+    # if not os.path.exists(root_dir):
+    #     os.makedirs(root_dir)
+    #
+    # current_dir = root_dir
+    #
+    # # 建立当日任务的保存目录
+    # daily_dir_name = os.path.join(current_dir, 'paper', datetime.datetime.now().strftime("%Y%m%d"))
+    #
+    # # 获取主题的论文信息
+    # topic_paper = get_topic_paper(topic, query_list, max_results=max_results_per_query)
+    #
+    # # 保存论文信息
+    # paper_data_path = save_json_file(dir_name=daily_dir_name, topic_paper=topic_paper)
+    #
+    # # 通过llm选取论文
+    # judge_result_path = moonshot_tool.judge_paper(paper_data_path=paper_data_path, paper_number=max_results_per_query,
+    #                                               judge_number=judge_number, llm="moonshot")
+    #
+    # # 下载论文
+    # download_paper(judge_result_path=judge_result_path, dir_path=daily_dir_name)
+    #
+    # # 对论文进行总结
+    # moonshot_tool.summary_paper(judge_result_path=judge_result_path,
+    #                             root_paper_path=os.path.join(current_dir, 'paper'),
+    #                             daily_dir=daily_dir_name)
+    print('Hello!')
+
+
+def main_process(
+        api_key: str,
+        topic: str,
+        query_list: list,
+        max_results_per_query: int,
+        judge_number: int,
+        day_list: list,
+        daily_time: datetime.time,
+        root_dir: str
+):
+    os.environ["KIMI_API_KEY"] = api_key
+
+    # 中文到英文的周几映射
+    weekday_mapping = {
+        "周一": "mon",
+        "周二": "tue",
+        "周三": "wed",
+        "周四": "thu",
+        "周五": "fri",
+        "周六": "sat",
+        "周日": "sun"
+    }
+
+    # 将时间转换为datetime.datetime对象
+    current_datetime = datetime.datetime.combine(datetime.datetime.today(), daily_time)
+
+    # 将时间提早20分钟
+    adjusted_datetime = current_datetime - datetime.timedelta(minutes=20)
+    print(adjusted_datetime.hour, adjusted_datetime.minute)
+
+    # 定义定时任务函数
+    def schedule_task(chinese_weekdays, hour, minute):
+        # 将中文周几列表转换为英文缩写列表
+        weekdays = [weekday_mapping[wd] for wd in chinese_weekdays]
+
+        # 创建定时任务
+        for day in weekdays:
+            schedule.every().day.at(f"{hour}:{minute}").do(
+                lambda: paper_process(
+                    topic=topic,
+                    query_list=query_list,
+                    max_results_per_query=max_results_per_query,
+                    judge_number=judge_number,
+                    root_dir=root_dir
+                )
+            ).tag(day)
+
+    # 提早20分钟触发任务
+    schedule_task(day_list, str(adjusted_datetime.hour).zfill(2), str(adjusted_datetime.minute).zfill(2))
+
+    # 持续运行直到手动停止
+    while True:
+        # 检查定时任务是否需要执行
+        schedule.run_pending()
+        time.sleep(120)  # 每隔60秒检查一次
+
+
 if __name__ == '__main__':
-    # 主题与关键词
-    topic = "Green and Low-carbon"
-    query_list = ["\"low carbon\"", "\"green building\""]
-    max_results_per_query = 1
-    paper_number = len(query_list) * max_results_per_query
-    judge_number = 2
-    if judge_number > paper_number:
-        raise ValueError("筛选论文的数量不能大于总论文数量...")
-
-    # 获取当前目录
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    # 建立当日任务的保存目录
-    daily_dir_name = os.path.join(current_dir, 'paper', datetime.datetime.now().strftime("%Y%m%d"))
-
-    # 获取主题的论文信息
-    topic_paper = get_topic_paper(topic, query_list, max_results=max_results_per_query)
-
-    # 保存论文信息
-    paper_data_path = save_json_file(dir_name=daily_dir_name, topic_paper=topic_paper)
-
-    # 通过llm选取论文
-    judge_result_path = moonshot_tool.judge_paper(paper_data_path=paper_data_path, paper_number=paper_number,
-                                                  judge_number=judge_number, llm="moonshot")
-
-    # 下载论文
-    download_paper(judge_result_path=judge_result_path, dir_path=daily_dir_name)
-
-    # 对论文进行总结
-    moonshot_tool.summary_paper(judge_result_path=judge_result_path, root_paper_path=os.path.join(current_dir, 'paper'),
-                                daily_dir=daily_dir_name)
+    # # 主题与关键词
+    # topic = "Green and Low-carbon"
+    # query_list = ["\"low carbon\"", "\"green building\""]
+    # max_results_per_query = 1
+    # paper_number = len(query_list) * max_results_per_query
+    # judge_number = 2
+    # if judge_number > paper_number:
+    #     raise ValueError("筛选论文的数量不能大于总论文数量...")
+    #
+    # # 获取当前目录
+    # current_dir = os.path.dirname(os.path.abspath(__file__))
+    # # 建立当日任务的保存目录
+    # daily_dir_name = os.path.join(current_dir, 'paper', datetime.datetime.now().strftime("%Y%m%d"))
+    #
+    # # 获取主题的论文信息
+    # topic_paper = get_topic_paper(topic, query_list, max_results=max_results_per_query)
+    #
+    # # 保存论文信息
+    # paper_data_path = save_json_file(dir_name=daily_dir_name, topic_paper=topic_paper)
+    #
+    # # 通过llm选取论文
+    # judge_result_path = moonshot_tool.judge_paper(paper_data_path=paper_data_path, paper_number=paper_number,
+    #                                               judge_number=judge_number, llm="moonshot")
+    #
+    # # 下载论文
+    # download_paper(judge_result_path=judge_result_path, dir_path=daily_dir_name)
+    #
+    # # 对论文进行总结
+    # moonshot_tool.summary_paper(judge_result_path=judge_result_path, root_paper_path=os.path.join(current_dir, 'paper'),
+    #                             daily_dir=daily_dir_name)
+    pass
 
 
 
