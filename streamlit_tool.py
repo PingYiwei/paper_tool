@@ -6,6 +6,8 @@ import os
 st.title("论文自动化工具")
 
 st.info("受版权限制，目前本工具仅支持Arxiv")
+st.warning('因为Moonshot AI（kimi chat）每个人免费的API Key额度为15元，所以尽可能控制运行的频率，另外，免费账户的并发量有限，1分钟仅能发送3次，'
+           '所以程序通常会在报告生成的时间前间隔运行，以确保能完成任务')
 
 # region 添加侧边栏
 # 添加侧边栏标题
@@ -60,7 +62,8 @@ queries_number = {}
 
 # 根据选择的内容创建对应内容的输入框
 for option in options:
-    queries[option] = st.text_input(f'{option}检索关键词', queries.get(option, ''), placeholder='以英文逗号分隔输入英文关键词')
+    queries[option] = st.text_input(f'{option}检索关键词', queries.get(option, ''),
+                                    placeholder='以英文逗号分隔输入英文关键词')
 
     # 统计字符串数量
     if queries[option]:
@@ -70,7 +73,6 @@ for option in options:
         queries_number[option] = len(strings)
         # 显示统计结果
         st.write(f"{option} 输入的关键词数量为：{queries_number[option]}")
-
 
 # endregion
 
@@ -108,10 +110,3 @@ default_file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "pa
 
 # 输入文件保存路径
 file_path = st.text_input("请输入文件保存路径", value=default_file_path, help="输入文件保存路径")
-
-
-st.info('因为Moonshot AI（kimi chat）每个人免费的API Key额度为15元，所以尽可能控制运行的频率，另外，免费账户的并发量有限，1分钟仅能发送3次，'
-        '所以程序通常会在报告生成前间隔运行，以确保能完成任务')
-
-
-
