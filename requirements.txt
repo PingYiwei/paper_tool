@@ -1,0 +1,5 @@
+arxiv~=2.1.0
+schedule~=1.2.1
+markdown2~=2.4.13
+openai~=1.16.2
+streamlit~=1.33.0
