@@ -3,6 +3,10 @@ import os
 from pathlib import Path
 
 from openai import OpenAI
+import time
+
+from llm_tool.gen_tool import print_with_timestamp
+
 # from dotenv import load_dotenv
 #
 # load_dotenv()
@@ -11,7 +15,7 @@ from openai import OpenAI
 def extract_paper_data(paper_data_path):
     """
     从json中读取数据，并仅保留paper_id、paper_title、paper_abstract字段
-    :param paper_data_path: 论文数据的地址
+    :param paper_data_path: 论文数据的路径
     :return: 论文数据
     """
     with open(paper_data_path, "r", encoding="utf-8") as f:
@@ -24,7 +28,11 @@ def extract_paper_data(paper_data_path):
                 article = {
                     "paper_id": paper_info["paper_id"],
                     "paper_title": paper_info["paper_title"],
-                    "paper_abstract": paper_info["paper_abstract"]
+                    "paper_abstract": paper_info["paper_abstract"],
+                    "paper_authors": paper_info["paper_authors"],
+                    "paper_primary_category": paper_info["paper_primary_category"],
+                    "paper_published_time": paper_info["paper_published_time"],
+                    "paper_entry_id": paper_info["paper_entry_id"],
                 }
                 papers_info.append(article)
 
@@ -40,7 +48,11 @@ def update_judge_results(paper_data_path, judge_results):
     """
     judge_result_path = paper_data_path.replace(".json", "_judge_result.json")
     with open(judge_result_path, "w", encoding="utf-8") as f:
-        json.dump(json.loads(judge_results.strip("```json")), f, ensure_ascii=False, indent=4)
+        # 去除首尾的```json
+        json_results = json.loads(judge_results.strip("```json"))
+        if type(json_results) is not list:
+            json_results = [json_results]
+        json.dump(json_results, f, ensure_ascii=False, indent=4)
 
     return judge_result_path
 
@@ -55,7 +67,7 @@ def judge_paper(paper_data_path, paper_number, judge_number=2, llm="openai"):
     """
     judge_result_path = paper_data_path.replace(".json", "_judge_result.json")
     if os.path.exists(judge_result_path):
-        print("论文筛选结果已经存在，从本地文件中读取...")
+        print_with_timestamp("论文筛选结果已经存在，从本地文件中读取...")
         return judge_result_path
 
     # 从论文json中提取paper_id、paper_title、paper_abstract字段
@@ -94,7 +106,7 @@ def judge_paper(paper_data_path, paper_number, judge_number=2, llm="openai"):
         )
     judge_results = completion.choices[0].message.content
     judge_result_path = update_judge_results(paper_data_path, judge_results)
-    print(f"论文筛选完成，从总共 {paper_number} 篇论文中保留了 {judge_number} 篇论文...")
+    print_with_timestamp(f"论文筛选完成，从总共 {paper_number} 篇论文中保留了 {judge_number} 篇论文...")
 
     return judge_result_path
 
@@ -167,13 +179,15 @@ def get_summary_from_moonshot(client, dir_path, paper_id):
         )
 
     summary_content = json.loads(completion.choices[0].message.content.strip("```json"))
+    print_with_timestamp(f"论文 {paper_id} 的总结共计消耗tokens：{completion.usage.total_tokens}")
 
     return summary_content
 
 
-def summary_paper(judge_result_path, root_paper_path, daily_dir):
+def summary_paper(judge_result_path, root_paper_path, daily_dir, is_free_account=True):
     """
     对论文进行总结
+    :param is_free_account: 是否是免费账户
     :param daily_dir: 每日信息保存目录
     :param root_paper_path: 论文根目录
     :param judge_result_path: 筛选后论文id的json文件
@@ -212,27 +226,36 @@ def summary_paper(judge_result_path, root_paper_path, daily_dir):
                     paper_summary_dict = json.load(f)
             # 检查是否存在 paper_id 字段
             if f"{paper_id}" in paper_summary_dict:
-                print(f"论文 {paper_id} 已总结，从本地文件中拉取...")
+                print_with_timestamp(f"论文 {paper_id} 已总结，从本地文件中拉取...")
                 current_paper_summary_dict[paper_id] = paper_summary_dict[paper_id]
             else:
-                print(f"论文 {paper_id} 未经总结，调用Moonshot AI总结...")
+                print_with_timestamp(f"论文 {paper_id} 未经总结，调用Moonshot AI总结...")
+                # 是否是免费账户
+                if is_free_account:
+                    print_with_timestamp("由于您使用的是免费账户，Moonshot AI 限制了每分钟的请求次数，因此需要等待120秒...")
+                    time.sleep(120)
+                # 调用Moonshot AI获取论文总结
                 summary_content = get_summary_from_moonshot(client, daily_dir, paper_id)
                 current_paper_summary_dict[paper_id] = summary_content
                 paper_summary_dict[paper_id] = summary_content
                 with open(total_summary_json_path, "w", encoding='utf-8') as f:
-                    json.dump(current_paper_summary_dict, f, ensure_ascii=False, indent=4)
-                print(f"论文 {paper_id} 总结完成...")
+                    json.dump(paper_summary_dict, f, ensure_ascii=False, indent=4)
+                print_with_timestamp(f"论文 {paper_id} 总结完成...")
 
     # 保存总结信息
     paper_summary_json_path = judge_result_path.replace("_judge_result.json", "_summary.json")
     with open(paper_summary_json_path, "w", encoding="utf-8") as f:
-        json.dump(paper_summary_dict, f, ensure_ascii=False, indent=4)
+        json.dump(current_paper_summary_dict, f, ensure_ascii=False, indent=4)
 
-    print("所有总结已完成...")
+    print_with_timestamp("所有总结已完成...")
 
 
 if __name__ == "__main__":
+    from gen_tool import print_with_timestamp
+    print_with_timestamp("123")
     # paper_data_path = "../paper/20240412130355.json"
     # judge_paper(paper_data_path, llm="kimi")
     # summary_paper("../paper/20240412130355_judge_result.json", dir_path="../paper")
+    # os.environ["KIMI_BASE_URL"] = "https://api.moonshot.cn/v1"
+    # print_with_timestamp(os.getenv("KIMI_BASE_URL"))
     pass
