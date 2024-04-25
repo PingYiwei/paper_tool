@@ -59,3 +59,5 @@ Network URL: http://xx.xx.xx.xx:8501
  
 
 ![image](https://github.com/PingYiwei/paper_tool/assets/68776067/b38de1fc-1702-4b6d-bba7-3ba5220839a7)
+![image](https://github.com/PingYiwei/paper_tool/assets/68776067/48faf7b4-4d0e-4f32-b9b6-34d70022027e)
+
