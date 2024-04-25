@@ -1,8 +1,10 @@
 import json
 import os
+import re
 from pathlib import Path
 
 from openai import OpenAI
+import openai
 import time
 
 from llm_tool.gen_tool import print_with_timestamp
@@ -49,7 +51,9 @@ def update_judge_results(paper_data_path, judge_results):
     judge_result_path = paper_data_path.replace(".json", "_judge_result.json")
     with open(judge_result_path, "w", encoding="utf-8") as f:
         # 去除首尾的```json
-        json_results = json.loads(judge_results.strip("```json"))
+        print(judge_results)
+        pattern = re.compile(r'`json\s*(.*?)\s*`', re.DOTALL)
+        json_results = json.loads(pattern.findall(judge_results)[0])
         if type(json_results) is not list:
             json_results = [json_results]
         json.dump(json_results, f, ensure_ascii=False, indent=4)
@@ -73,6 +77,9 @@ def judge_paper(paper_data_path, paper_number, judge_number=2, llm="openai"):
     # 从论文json中提取paper_id、paper_title、paper_abstract字段
     papers_info = extract_paper_data(paper_data_path)
 
+    if len(papers_info) < judge_number:
+        judge_number = len(papers_info)
+
     if llm == "moonshot":
         client = OpenAI(
             api_key=os.getenv("KIMI_API_KEY"),
@@ -85,7 +92,7 @@ def judge_paper(paper_data_path, paper_number, judge_number=2, llm="openai"):
                  "content": "你是 Kimi，由 Moonshot AI 提供的人工智能助手，你更擅长中文和英文的对话。你会为用户提供安全，有帮助，准确的回答。"
                             "同时，你会拒绝一切涉及恐怖主义，种族歧视，黄色暴力等问题的回答。Moonshot AI 为专有名词，不可翻译成其他语言。"},
                 {"role": "user",
-                 "content": f"{papers_info} \n " + f"从用户提供的论文列表中选择{judge_number}" + "篇适合非专业人士阅读的论文，只需要以[{\"paper_id\": ""}]的json格式返回论文的paper_id，不需要其他内容"}
+                 "content": f"{papers_info} \n " + f"从用户提供的论文列表中选择{judge_number}" + "篇适合建筑领域人士阅读的论文，必须以[{\"paper_id\": ""}]的json格式返回结果，禁止添加其他内容"}
             ],
             temperature=0,
         )
@@ -100,7 +107,7 @@ def judge_paper(paper_data_path, paper_number, judge_number=2, llm="openai"):
                 {"role": "system",
                  "content": ""},
                 {"role": "user",
-                 "content": f"{papers_info} \n " + f"从用户提供的论文列表中选择{judge_number}" + "篇适合非专业人士阅读的论文，只需要以[{\"paper_id\": ""}]的json格式返回论文的paper_id，不需要其他内容"}
+                 "content": f"{papers_info} \n " + f"从用户提供的论文列表中选择{judge_number}" + "篇适合建筑领域人士阅读的论文，只需要以[{\"paper_id\": ""}]的json格式返回论文的paper_id，不需要其他内容"}
             ],
             temperature=0,
         )
@@ -133,25 +140,29 @@ def get_summary_from_moonshot(client, dir_path, paper_id):
         file_content = client.files.content(file_id=result[0]).text
 
         # 调用kimi对论文进行摘要
-        completion = client.chat.completions.create(
-            model="moonshot-v1-32k",
-            messages=[
-                {"role": "system",
-                 "content": "你是 Kimi，由 Moonshot AI 提供的人工智能助手，你更擅长中文和英文的对话。你会为用户提供安全，有帮助，准确的回答。"
-                            "同时，你会拒绝一切涉及恐怖主义，种族歧视，黄色暴力等问题的回答。Moonshot AI 为专有名词，不可翻译成其他语言。"},
-                {
-                    "role": "system",
-                    "content": file_content,
-                },
-                {
-                    "role": "user",
-                    "content": f"请用中文对{paper_id}.pdf进行总结归纳，不超过400字，并且列举2个创新点，以json格式返回,格式为"
-                               + '{"summary": 在这里填写总结归纳内容, "keypoints_1": 在这里填写第一个创新点内容, '
-                                 '"keypoints_2": 在这里填写第二个创新点内容}'
-                }
-            ],
-            temperature=0,
-        )
+        try:
+            completion = client.chat.completions.create(
+                model="moonshot-v1-32k",
+                messages=[
+                    {"role": "system",
+                     "content": "你是 Kimi，由 Moonshot AI 提供的人工智能助手，你更擅长中文和英文的对话。你会为用户提供安全，有帮助，准确的回答。"
+                                "同时，你会拒绝一切涉及恐怖主义，种族歧视，黄色暴力等问题的回答。Moonshot AI 为专有名词，不可翻译成其他语言。"},
+                    {
+                        "role": "system",
+                        "content": file_content,
+                    },
+                    {
+                        "role": "user",
+                        "content": f"请用中文对{paper_id}.pdf进行总结归纳，不超过400字，并且列举2个创新点，以json格式返回,格式为"
+                                   + '{"summary": 在这里填写总结归纳内容, "keypoints_1": 在这里填写第一个创新点内容, '
+                                     '"keypoints_2": 在这里填写第二个创新点内容}'
+                    }
+                ],
+                temperature=0,
+            )
+        except openai.RateLimitError as e:
+            print_with_timestamp("触发速率限制，重新调用总结程序...")
+            get_summary_from_moonshot(client, dir_path, paper_id)
     else:
         # 文件对象
         file_object = client.files.create(file=Path(str(paper_pdf)), purpose="file-extract")
